@@ -1,0 +1,177 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${LOADTEST_PROMETHEUS_RETENTION:-30d}
+      - --web.enable-remote-write-receiver
+    ports:
+      - "127.0.0.1:${LOADTEST_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./loadtest/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - loadtest-prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--output-document=/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  grafana:
+    image: grafana/grafana:12.3.6
+    entrypoint: ["/bin/sh", "/usr/local/bin/goodqueue-grafana-entrypoint.sh"]
+    environment:
+      GF_SECURITY_ADMIN_USER: "${LOADTEST_GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${LOADTEST_GRAFANA_ADMIN_PASSWORD:-goodqueue}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SERVER_ENABLE_GZIP: "true"
+      GF_SERVER_ROOT_URL: "${GOODQUEUE_PUBLIC_URL:-http://localhost:8088}/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/generated-dashboards/goodqueue-loadtest.json
+      LOADTEST_RUNNER_PUBLIC_URL: "${GOODQUEUE_PUBLIC_URL:-http://localhost:8088}/loadtest-runner"
+    expose:
+      - "3000"
+    volumes:
+      - loadtest-grafana:/var/lib/grafana
+      - ./loadtest/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./loadtest/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./loadtest/grafana/dashboards:/etc/grafana/dashboard-templates:ro
+      - ./loadtest/grafana/entrypoint.sh:/usr/local/bin/goodqueue-grafana-entrypoint.sh:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:3000/grafana/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  loadtest-runner:
+    profiles: ["dev-tools"]
+    build:
+      context: .
+      dockerfile: loadtest/Dockerfile.runner
+    image: "${COMPOSE_PROJECT_NAME:-goodqueue}-loadtest-runner"
+    user: "${LOADTEST_DOCKER_USER:-1000:1000}"
+    environment:
+      LOADTEST_RUNNER_ENABLED: "${LOADTEST_RUNNER_ENABLED:-true}"
+      LOADTEST_RUNNER_ADDRESS: :8081
+      LOADTEST_RUNNER_API_KEY: "${LOADTEST_RUNNER_API_KEY:-}"
+      LOADTEST_RUNNER_CORS_ALLOWED_ORIGINS: "${LOADTEST_RUNNER_CORS_ALLOWED_ORIGINS:-https://mscontractor.golddraft.ru,http://localhost:8088,http://127.0.0.1:8088}"
+      LOADTEST_RUNNER_BASE_URL: http://backend:8080
+      LOADTEST_RUNNER_DATABASE_URL: "postgres://${GOODQUEUE_POSTGRES_USER:-goodqueue}:${GOODQUEUE_POSTGRES_PASSWORD:?GOODQUEUE_POSTGRES_PASSWORD must be set}@postgres:5432/${GOODQUEUE_POSTGRES_DB:-goodqueue}?sslmode=disable"
+      LOADTEST_RUNNER_PROMETHEUS_WRITE_URL: http://prometheus:9090/api/v1/write
+      LOADTEST_RUNNER_GENERATED_DIR: /work/loadtest/generated
+      LOADTEST_RUNNER_RESULTS_DIR: /work/loadtest/results
+      LOADTEST_RUNNER_SCRIPTS_DIR: /work/loadtest/k6
+      LOADTEST_RUNNER_SEED_BINARY: loadtest-seed
+    expose:
+      - "8081"
+    volumes:
+      - ./loadtest/generated:/work/loadtest/generated
+      - ./loadtest/results:/work/loadtest/results
+    depends_on:
+      backend:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8081/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  loadtest-seed:
+    profiles: ["cli-loadtest"]
+    build:
+      context: .
+      dockerfile: loadtest/Dockerfile.runner
+    image: "${COMPOSE_PROJECT_NAME:-goodqueue}-loadtest-runner"
+    entrypoint: ["loadtest-seed"]
+    working_dir: /work
+    environment:
+      LOADTEST_PROFILE: "${LOADTEST_PROFILE:-smoke}"
+      LOADTEST_SCENARIO: "${LOADTEST_SCENARIO:-queue_join_polling}"
+      LOADTEST_RUN_ID: "${LOADTEST_RUN_ID:-local}"
+      LOADTEST_RANDOM_SEED: "${LOADTEST_RANDOM_SEED:-42}"
+      LOADTEST_USERS: "${LOADTEST_USERS:-}"
+      LOADTEST_PRODUCTS: "${LOADTEST_PRODUCTS:-}"
+      LOADTEST_PRODUCTS_PER_USER: "${LOADTEST_PRODUCTS_PER_USER:-}"
+      LOADTEST_RAMP_DURATION: "${LOADTEST_RAMP_DURATION:-}"
+      LOADTEST_POLL_INTERVAL: "${LOADTEST_POLL_INTERVAL:-10s}"
+      LOADTEST_POLL_DURATION: "${LOADTEST_POLL_DURATION:-}"
+      LOADTEST_OUTCOME_TIMEOUT: "${LOADTEST_OUTCOME_TIMEOUT:-7m}"
+      LOADTEST_QUEUE_CAPACITY: "${LOADTEST_QUEUE_CAPACITY:-1000}"
+      LOADTEST_DUPLICATE_JOIN_PERCENT: "${LOADTEST_DUPLICATE_JOIN_PERCENT:-10}"
+      LOADTEST_MIN_STOCK: "${LOADTEST_MIN_STOCK:-1}"
+      LOADTEST_MAX_STOCK: "${LOADTEST_MAX_STOCK:-20}"
+      LOADTEST_CLEANUP_BEFORE_SEED: "${LOADTEST_CLEANUP_BEFORE_SEED:-false}"
+      LOADTEST_KEEP_DATA: "${LOADTEST_KEEP_DATA:-true}"
+      LOADTEST_BASE_URL: http://backend:8080
+      LOADTEST_DATABASE_URL: "postgres://${GOODQUEUE_POSTGRES_USER:-goodqueue}:${GOODQUEUE_POSTGRES_PASSWORD:?GOODQUEUE_POSTGRES_PASSWORD must be set}@postgres:5432/${GOODQUEUE_POSTGRES_DB:-goodqueue}?sslmode=disable"
+      LOADTEST_DATA_FILE: "/work/loadtest/generated/${LOADTEST_RUN_ID:-local}/data.json"
+      LOADTEST_RESULTS_DIR: /work/loadtest/results
+    volumes:
+      - ./loadtest/generated:/work/loadtest/generated
+      - ./loadtest/results:/work/loadtest/results
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+
+  backend:
+    environment:
+      # This overlay is the only environment allowed to expose the test-only
+      # payment callback inside the Compose network. It must not inherit the
+      # production-safe "false" value from the base .env file.
+      GOODQUEUE_ADAPTIVE_QUEUE_ENABLED: "true"
+      GOODQUEUE_UNSAFE_PAYMENT_CALLBACK: "true"
+
+  k6:
+    profiles: ["cli-loadtest"]
+    image: grafana/k6:0.54.0
+    user: "${LOADTEST_DOCKER_USER:-1000:1000}"
+    working_dir: /work
+    entrypoint: ["k6"]
+    command: ["run", "-o", "experimental-prometheus-rw", "loadtest/k6/queue-join-polling.js"]
+    environment:
+      LOADTEST_PROFILE: "${LOADTEST_PROFILE:-smoke}"
+      LOADTEST_SCENARIO: "${LOADTEST_SCENARIO:-queue_join_polling}"
+      LOADTEST_BASE_URL: "${LOADTEST_DOCKER_BASE_URL:-http://backend:8080}"
+      LOADTEST_RUN_ID: "${LOADTEST_RUN_ID:-local}"
+      LOADTEST_RANDOM_SEED: "${LOADTEST_RANDOM_SEED:-42}"
+      LOADTEST_USERS: "${LOADTEST_USERS:-}"
+      LOADTEST_PRODUCTS: "${LOADTEST_PRODUCTS:-}"
+      LOADTEST_PRODUCTS_PER_USER: "${LOADTEST_PRODUCTS_PER_USER:-}"
+      LOADTEST_RAMP_DURATION: "${LOADTEST_RAMP_DURATION:-}"
+      LOADTEST_POLL_INTERVAL: "${LOADTEST_POLL_INTERVAL:-10s}"
+      LOADTEST_POLL_DURATION: "${LOADTEST_POLL_DURATION:-}"
+      LOADTEST_OUTCOME_TIMEOUT: "${LOADTEST_OUTCOME_TIMEOUT:-7m}"
+      LOADTEST_QUEUE_CAPACITY: "${LOADTEST_QUEUE_CAPACITY:-1000}"
+      LOADTEST_DUPLICATE_JOIN_PERCENT: "${LOADTEST_DUPLICATE_JOIN_PERCENT:-10}"
+      LOADTEST_MIN_STOCK: "${LOADTEST_MIN_STOCK:-1}"
+      LOADTEST_MAX_STOCK: "${LOADTEST_MAX_STOCK:-20}"
+      LOADTEST_CLEANUP_BEFORE_SEED: "${LOADTEST_CLEANUP_BEFORE_SEED:-false}"
+      LOADTEST_KEEP_DATA: "${LOADTEST_KEEP_DATA:-true}"
+      LOADTEST_DATA_FILE: "/work/loadtest/generated/${LOADTEST_RUN_ID:-local}/data.json"
+      LOADTEST_RESULTS_DIR: /work/loadtest/results
+      K6_WEB_DASHBOARD: "${K6_WEB_DASHBOARD:-false}"
+      K6_PROMETHEUS_RW_SERVER_URL: "${LOADTEST_DOCKER_PROMETHEUS_URL:-http://prometheus:9090/api/v1/write}"
+      K6_PROMETHEUS_RW_TREND_STATS: "${K6_PROMETHEUS_RW_TREND_STATS:-avg,min,max,p(90),p(95),p(99)}"
+      K6_PROMETHEUS_RW_STALE_MARKERS: "false"
+    volumes:
+      - ./:/work
+    depends_on:
+      backend:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+
+volumes:
+  loadtest-prometheus:
+  loadtest-grafana:

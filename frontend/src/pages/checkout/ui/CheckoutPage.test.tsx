@@ -1,0 +1,289 @@
+import { jest } from '@jest/globals';
+import { MantineProvider } from '@mantine/core';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+
+import type { Product } from '@/entities/product';
+import type { QueueAttempt, QueueAttemptState } from '@/entities/queue-attempt';
+
+interface ProductQueryState {
+  data?: Product;
+  isError: boolean;
+  isPending: boolean;
+  refetch: () => Promise<void>;
+}
+
+interface QueueAttemptQueryState {
+  data?: QueueAttempt | null;
+  isError: boolean;
+  isPending: boolean;
+  refetch: () => Promise<void>;
+}
+
+const productId = '11111111-1111-4111-8111-111111111111';
+const userId = '00000000-0000-4000-8000-000000000001';
+const useQueueAttemptQueryMock =
+  jest.fn<(currentProductId: string, currentUserId: string | null) => QueueAttemptQueryState>();
+const useProductQueryMock = jest.fn<(currentProductId: string) => ProductQueryState>();
+const cancelQueueButtonMock = jest.fn(
+  (_props: { fullWidth?: boolean; label?: string; size?: string }) => (
+    <button
+      data-size={_props.size}
+      style={{ width: _props.fullWidth ? '100%' : 'fit-content' }}
+      type="button"
+    >
+      {_props.label ?? 'Выйти из очереди'}
+    </button>
+  ),
+);
+const completeDemoPaymentButtonMock = jest.fn(
+  (_props: { attemptId: string; productId: string; userId: string | null }) => (
+    <button data-size="md" style={{ width: '100%' }} type="button">
+      Оплатить и завершить покупку
+    </button>
+  ),
+);
+const refetchMock = jest.fn<() => Promise<void>>();
+const refetchProductMock = jest.fn<() => Promise<void>>();
+
+jest.unstable_mockModule('@/entities/demo-user', () => ({
+  useCurrentDemoUser: () => ({ userId }),
+}));
+
+jest.unstable_mockModule('@/entities/queue-attempt', () => ({
+  getQueueAttemptRoute: (currentProductId: string, state: QueueAttemptState) =>
+    state === 'waiting'
+      ? `/products/${currentProductId}/queue`
+      : state === 'invited'
+        ? `/products/${currentProductId}/reservation`
+        : state === 'checkout'
+          ? `/products/${currentProductId}/checkout`
+          : `/products/${currentProductId}/result`,
+  useQueueAttemptQuery: useQueueAttemptQueryMock,
+}));
+
+jest.unstable_mockModule('@/entities/product', () => ({
+  formatProductPrice: () => '14 990 ₽',
+  PRODUCT_IMAGE_PLACEHOLDER: 'product-placeholder',
+  useProductQuery: useProductQueryMock,
+}));
+
+jest.unstable_mockModule('@/features/cancel-queue', () => ({
+  CancelQueueButton: cancelQueueButtonMock,
+}));
+
+jest.unstable_mockModule('./CompleteDemoPaymentButton', () => ({
+  CompleteDemoPaymentButton: completeDemoPaymentButtonMock,
+}));
+
+const { CheckoutPage } = await import('./CheckoutPage');
+
+const createAttempt = (state: QueueAttemptState = 'checkout'): QueueAttempt => ({
+  attempt_id: '22222222-2222-4222-8222-222222222222',
+  checkout_started_at: '2026-08-07T10:01:00Z',
+  created_at: '2026-08-07T10:00:00Z',
+  deadline_at: '2026-08-07T10:06:00Z',
+  message_code: 'checkout_started',
+  next_action: 'complete_payment',
+  product_id: productId,
+  queue_sequence: 1,
+  state,
+  updated_at: '2026-08-07T10:01:00Z',
+});
+
+const product: Product = {
+  allocatable_stock: 1,
+  category: 'Смартфоны',
+  description: 'Флагманский смартфон',
+  free_stock: 0,
+  id: productId,
+  image_url: 'https://example.com/product.jpg',
+  price_cents: 1_499_000,
+  queue_enabled: true,
+  reserved: 1,
+  title: 'Good Phone Pro',
+  waiting_buffer_capacity: 100,
+  waiting_count: 4,
+};
+
+const setQueryState = (state: Partial<QueueAttemptQueryState> = {}) => {
+  useQueueAttemptQueryMock.mockReturnValue({
+    data: createAttempt(),
+    isError: false,
+    isPending: false,
+    refetch: refetchMock,
+    ...state,
+  });
+};
+
+const setProductQueryState = (state: Partial<ProductQueryState> = {}) => {
+  useProductQueryMock.mockReturnValue({
+    data: product,
+    isError: false,
+    isPending: false,
+    refetch: refetchProductMock,
+    ...state,
+  });
+};
+
+const renderPage = () =>
+  render(
+    <MantineProvider>
+      <MemoryRouter initialEntries={[`/products/${productId}/checkout`]}>
+        <Routes>
+          <Route path="/products/:productId" element={<div>Страница товара</div>} />
+          <Route path="/products/:productId/queue" element={<div>Очередь</div>} />
+          <Route path="/products/:productId/reservation" element={<div>Резерв</div>} />
+          <Route path="/products/:productId/checkout" element={<CheckoutPage />} />
+          <Route path="/products/:productId/result" element={<div>Результат</div>} />
+        </Routes>
+      </MemoryRouter>
+    </MantineProvider>,
+  );
+
+describe('CheckoutPage', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-07T10:05:00Z'));
+    cancelQueueButtonMock.mockClear();
+    completeDemoPaymentButtonMock.mockClear();
+    refetchMock.mockReset();
+    refetchMock.mockResolvedValue(undefined);
+    refetchProductMock.mockReset();
+    refetchProductMock.mockResolvedValue(undefined);
+    useProductQueryMock.mockReset();
+    useQueueAttemptQueryMock.mockReset();
+    setProductQueryState();
+    setQueryState();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('restores checkout from a direct URL and offers transparent demo payment', () => {
+    const attempt = createAttempt();
+    setQueryState({ data: attempt });
+    renderPage();
+
+    expect(useProductQueryMock).toHaveBeenCalledWith(productId);
+    expect(useQueueAttemptQueryMock).toHaveBeenCalledWith(productId, userId);
+    expect(screen.getByRole('heading', { name: 'Товар сохранён за вами' })).toBeInTheDocument();
+    expect(screen.getByText('Товар останется за вами до окончания резерва.')).toBeInTheDocument();
+    expect(screen.queryByText(/проверьте товар|проверьте время/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: product.title })).toBeInTheDocument();
+    expect(screen.getByText('14 990 ₽')).toBeInTheDocument();
+    expect(screen.getByRole('timer', { name: 'Осталось времени: 01:00' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Демонстрационная оплата');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Деньги не списываются. Кнопка ниже имитирует успешный ответ платёжной системы и завершает покупку в GoodQueue.',
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent('проверить товар');
+    expect(
+      screen.getByRole('button', { name: 'Оплатить и завершить покупку' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Отказаться от покупки' })).toBeInTheDocument();
+    const actions = screen.getByRole('group', { name: 'Действия оформления' });
+    const paymentButton = within(actions).getByRole('button', {
+      name: 'Оплатить и завершить покупку',
+    });
+    const cancelButton = within(actions).getByRole('button', { name: 'Отказаться от покупки' });
+    expect(actions).toHaveStyle({ flexWrap: 'wrap' });
+    expect(paymentButton.parentElement).toHaveStyle({ flex: '1 1 15rem' });
+    expect(cancelButton.parentElement).toHaveStyle({ flex: '1 1 15rem' });
+    expect(paymentButton).toHaveAttribute('data-size', 'md');
+    expect(cancelButton).toHaveAttribute('data-size', 'md');
+    expect(paymentButton).toHaveStyle({ width: '100%' });
+    expect(cancelButton).toHaveStyle({ width: '100%' });
+    expect(completeDemoPaymentButtonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: attempt.attempt_id,
+        productId,
+        userId,
+      }),
+      undefined,
+    );
+    expect(cancelQueueButtonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorTitle: 'Не удалось отказаться от покупки',
+        fullWidth: true,
+        label: 'Отказаться от покупки',
+        productId,
+        size: 'md',
+        userId,
+      }),
+      undefined,
+    );
+  });
+
+  it('shows the initial loading state while the queue attempt is loading', () => {
+    setQueryState({ data: undefined, isPending: true });
+    renderPage();
+
+    expect(screen.getByRole('status', { name: 'Загрузка оформления' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: product.title })).not.toBeInTheDocument();
+  });
+
+  it('shows the initial loading state while the product is loading', () => {
+    setProductQueryState({ data: undefined, isPending: true });
+    renderPage();
+
+    expect(screen.getByRole('status', { name: 'Загрузка оформления' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отказаться от покупки' })).not.toBeInTheDocument();
+  });
+
+  it('updates the countdown and refetches the backend state at zero', () => {
+    setQueryState({
+      data: { ...createAttempt(), deadline_at: '2026-08-07T10:05:01Z' },
+    });
+    renderPage();
+
+    act(() => {
+      jest.advanceTimersByTime(1_000);
+    });
+
+    expect(screen.getByRole('timer', { name: 'Осталось времени: 00:00' })).toBeInTheDocument();
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the checkout available when backend omits the deadline', () => {
+    const attempt = createAttempt();
+    delete attempt.deadline_at;
+    setQueryState({ data: attempt });
+    renderPage();
+
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+    expect(screen.getByText(/не удалось показать точное время/i)).toBeInTheDocument();
+    expect(screen.queryByText(/backend|mvp|attempt/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Отказаться от покупки' })).toBeInTheDocument();
+  });
+
+  it('shows a retry state when the product cannot be loaded', () => {
+    setProductQueryState({ data: undefined, isError: true });
+    renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить товар');
+    screen.getByRole('button', { name: 'Повторить' }).click();
+
+    expect(refetchProductMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['waiting', 'Очередь'],
+    ['invited', 'Резерв'],
+    ['purchased', 'Результат'],
+    ['payment_failed', 'Результат'],
+  ] as const)('routes backend state %s through the shared rule', async (state, target) => {
+    setQueryState({ data: createAttempt(state) });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(target)).toBeInTheDocument());
+  });
+
+  it('returns to the product when there is no current attempt', async () => {
+    setQueryState({ data: null });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('Страница товара')).toBeInTheDocument());
+  });
+});

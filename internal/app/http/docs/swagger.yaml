@@ -1,0 +1,973 @@
+basePath: /
+consumes:
+- application/json
+definitions:
+  domain.QueueAttemptState:
+    enum:
+    - waiting
+    - invited
+    - checkout
+    - purchased
+    - invite_expired
+    - checkout_expired
+    - payment_failed
+    - cancelled
+    - sold_out
+    type: string
+    x-enum-varnames:
+    - QueueAttemptWaiting
+    - QueueAttemptInvited
+    - QueueAttemptCheckout
+    - QueueAttemptPurchased
+    - QueueAttemptInviteExpired
+    - QueueAttemptCheckoutExpired
+    - QueueAttemptPaymentFailed
+    - QueueAttemptCancelled
+    - QueueAttemptSoldOut
+  domain.RecommendationMode:
+    enum:
+    - ai_semantic
+    - catalog_fallback
+    type: string
+    x-enum-varnames:
+    - RecommendationModeSemantic
+    - RecommendationModeFallback
+  domain.RecommendationReason:
+    enum:
+    - semantically_similar
+    - same_category_available
+    - available_now
+    type: string
+    x-enum-varnames:
+    - RecommendationReasonSemantic
+    - RecommendationReasonSameCategory
+    - RecommendationReasonAvailable
+  handler.AdaptiveQueueStatusResponse:
+    properties:
+      applied_at:
+        type: string
+      base_percent:
+        type: integer
+      checkout_outcomes:
+        type: number
+      current_percent:
+        type: integer
+      enabled:
+        type: boolean
+      evaluated_at:
+        type: string
+      http_requests:
+        type: number
+      http_success_percent:
+        type: number
+      maximum_percent:
+        type: integer
+      maximum_step_percent:
+        type: integer
+      minimum_checkout_outcomes:
+        type: integer
+      minimum_http_requests:
+        type: integer
+      minimum_http_success_percent:
+        type: number
+      minimum_percent:
+        type: integer
+      purchase_success_percent:
+        type: number
+      reason:
+        type: string
+      target_percent:
+        type: integer
+      window:
+        type: string
+      window_seconds:
+        type: integer
+    type: object
+  handler.DemoUserResponse:
+    properties:
+      display_name:
+        type: string
+      external_user_id:
+        format: uuid
+        type: string
+    required:
+    - display_name
+    - external_user_id
+    type: object
+  handler.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    required:
+    - status
+    type: object
+  handler.LoadtestPurchaseSuccessResponse:
+    properties:
+      cancelled:
+        example: 25
+        type: number
+      checkout_expired:
+        example: 15
+        type: number
+      purchase_percentage:
+        example: 60
+        type: number
+      purchased:
+        example: 60
+        type: number
+      total_checkout_outcomes:
+        example: 100
+        type: number
+      window:
+        example: 30m0s
+        type: string
+      window_seconds:
+        example: 1800
+        type: integer
+    required:
+    - cancelled
+    - checkout_expired
+    - purchase_percentage
+    - purchased
+    - total_checkout_outcomes
+    - window
+    - window_seconds
+    type: object
+  handler.LoadtestRequestSuccessResponse:
+    properties:
+      success_percentage:
+        example: 95
+        type: number
+      successful_requests:
+        example: 950
+        type: number
+      total_requests:
+        example: 1000
+        type: number
+      window:
+        example: 30m0s
+        type: string
+      window_seconds:
+        example: 1800
+        type: integer
+    required:
+    - success_percentage
+    - successful_requests
+    - total_requests
+    - window
+    - window_seconds
+    type: object
+  handler.PaymentEventRequest:
+    properties:
+      attempt_id:
+        format: uuid
+        type: string
+      event_id:
+        type: string
+      outcome:
+        enum:
+        - succeeded
+        - failed
+        type: string
+      payment_reference:
+        type: string
+      provider:
+        type: string
+    required:
+    - attempt_id
+    - event_id
+    - outcome
+    - payment_reference
+    - provider
+    type: object
+  handler.PaymentEventResponse:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  handler.ProductRecommendationResponse:
+    properties:
+      allocatable_stock:
+        minimum: 0
+        type: integer
+      category:
+        type: string
+      description:
+        type: string
+      free_stock:
+        minimum: 0
+        type: integer
+      id:
+        format: uuid
+        type: string
+      image_url:
+        format: uri
+        type: string
+      price_cents:
+        minimum: 0
+        type: integer
+      queue_enabled:
+        type: boolean
+      reason_code:
+        allOf:
+        - $ref: '#/definitions/domain.RecommendationReason'
+        enum:
+        - semantically_similar
+        - same_category_available
+        - available_now
+      recommendation_mode:
+        allOf:
+        - $ref: '#/definitions/domain.RecommendationMode'
+        enum:
+        - ai_semantic
+        - catalog_fallback
+      recommendation_score:
+        maximum: 1
+        minimum: 0
+        type: number
+      reserved:
+        minimum: 0
+        type: integer
+      title:
+        type: string
+      waiting_buffer_capacity:
+        minimum: 0
+        type: integer
+      waiting_count:
+        minimum: 0
+        type: integer
+    required:
+    - allocatable_stock
+    - category
+    - description
+    - free_stock
+    - id
+    - image_url
+    - price_cents
+    - queue_enabled
+    - reserved
+    - title
+    - waiting_buffer_capacity
+    - waiting_count
+    type: object
+  handler.ProductResponse:
+    properties:
+      allocatable_stock:
+        minimum: 0
+        type: integer
+      category:
+        type: string
+      description:
+        type: string
+      free_stock:
+        minimum: 0
+        type: integer
+      id:
+        format: uuid
+        type: string
+      image_url:
+        format: uri
+        type: string
+      price_cents:
+        minimum: 0
+        type: integer
+      queue_enabled:
+        type: boolean
+      reserved:
+        minimum: 0
+        type: integer
+      title:
+        type: string
+      waiting_buffer_capacity:
+        minimum: 0
+        type: integer
+      waiting_count:
+        minimum: 0
+        type: integer
+    required:
+    - allocatable_stock
+    - category
+    - description
+    - free_stock
+    - id
+    - image_url
+    - price_cents
+    - queue_enabled
+    - reserved
+    - title
+    - waiting_buffer_capacity
+    - waiting_count
+    type: object
+  handler.QueueEntryResponse:
+    properties:
+      attempt_id:
+        format: uuid
+        type: string
+      checkout_started_at:
+        format: date-time
+        type: string
+      created_at:
+        format: date-time
+        type: string
+      deadline_at:
+        format: date-time
+        type: string
+      expires_at:
+        format: date-time
+        type: string
+      invited_at:
+        format: date-time
+        type: string
+      message_code:
+        type: string
+      next_action:
+        type: string
+      position:
+        minimum: 1
+        type: integer
+      position_ahead:
+        type: integer
+      product_id:
+        format: uuid
+        type: string
+      purchased_at:
+        format: date-time
+        type: string
+      queue_sequence:
+        type: integer
+      state:
+        $ref: '#/definitions/domain.QueueAttemptState'
+      terminal_at:
+        format: date-time
+        type: string
+      total_waiting:
+        minimum: 0
+        type: integer
+      updated_at:
+        format: date-time
+        type: string
+    required:
+    - attempt_id
+    - created_at
+    - message_code
+    - next_action
+    - product_id
+    - queue_sequence
+    - state
+    - updated_at
+    type: object
+  handler.StockAdjustmentRequest:
+    properties:
+      delta:
+        example: 5
+        type: integer
+      external_reference:
+        type: string
+      reason:
+        type: string
+    required:
+    - delta
+    - external_reference
+    - reason
+    type: object
+  handler.StockAdjustmentResponse:
+    properties:
+      stock_after:
+        type: integer
+      stock_before:
+        type: integer
+    type: object
+  middleware.ErrorBody:
+    properties:
+      code:
+        example: invalid_input
+        type: string
+      message:
+        example: invalid request
+        type: string
+    required:
+    - code
+    - message
+    type: object
+  middleware.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/middleware.ErrorBody'
+    required:
+    - error
+    type: object
+info:
+  contact: {}
+  description: REST API for a fair two-stage limited-product purchase queue.
+  title: GoodQueue API
+  version: 0.1.0
+paths:
+  /api/v1/demo/users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.DemoUserResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: List demo accounts available for local account selection
+      tags:
+      - demo
+  /api/v1/products:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.ProductResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: List products with live inventory and queue availability
+      tags:
+      - products
+  /api/v1/products/{productID}:
+    get:
+      parameters:
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ProductResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Get a product with live inventory and queue availability
+      tags:
+      - products
+  /api/v1/products/{productID}/alternatives:
+    get:
+      parameters:
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.ProductRecommendationResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: List available alternative products
+      tags:
+      - products
+  /api/v1/products/{productID}/queue-attempts/{attemptID}/demo-payment:
+    post:
+      description: Simulates a successful payment for the authenticated demo user.
+        The operation is idempotent and only accepts that user's active checkout.
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Payment attempt idempotency key
+        in: header
+        maxLength: 128
+        minLength: 1
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      - description: Queue attempt UUID
+        format: uuid
+        in: path
+        name: attemptID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Complete a checkout with the safe demo payment flow
+      tags:
+      - checkout
+  /api/v1/products/{productID}/queue-entries:
+    post:
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Scoped queue join idempotency key
+        in: header
+        maxLength: 128
+        minLength: 1
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "409":
+          description: Conflict; disabled queues return error.code queue_disabled
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Join a product queue
+      tags:
+      - queue
+  /api/v1/products/{productID}/queue-entry:
+    delete:
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Cancel the current or latest queue entry
+      tags:
+      - queue
+    get:
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Get the current or latest queue entry
+      tags:
+      - queue
+  /api/v1/queue-attempts/{attemptID}/checkout:
+    post:
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Queue attempt UUID
+        format: uuid
+        in: path
+        name: attemptID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.QueueEntryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Start or replay checkout for an invited queue attempt
+      tags:
+      - checkout
+  /api/v1/queue-entries/active:
+    get:
+      parameters:
+      - description: Canonical lowercase external user UUID
+        format: uuid
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.QueueEntryResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: List the user's active queue entries
+      tags:
+      - queue
+  /healthz:
+    get:
+      description: Reports that the HTTP process is serving; does not check dependencies.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.HealthResponse'
+      summary: Liveness probe
+      tags:
+      - infrastructure
+  /internal/v1/adaptive-queue/status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AdaptiveQueueStatusResponse'
+      summary: Adaptive queue controller status
+      tags:
+      - internal
+  /internal/v1/loadtest/purchase-success-rate:
+    get:
+      description: Calculates purchased / (purchased + cancelled + checkout_expired)
+        for k6 purchase outcomes during the configured time window.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoadtestPurchaseSuccessResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: k6 purchase success percentage
+      tags:
+      - loadtest
+  /internal/v1/loadtest/request-success-rate:
+    get:
+      description: Calculates the request-weighted percentage of k6 HTTP requests
+        whose response was expected during the configured time window.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoadtestRequestSuccessResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: k6 request success percentage
+      tags:
+      - loadtest
+  /internal/v1/payment-events:
+    post:
+      consumes:
+      - application/json
+      description: Disabled by default. Runtime registration requires GOODQUEUE_UNSAFE_PAYMENT_CALLBACK=true;
+        do not expose publicly.
+      parameters:
+      - description: Payment provider event
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.PaymentEventRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.PaymentEventResponse'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handler.PaymentEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.PaymentEventResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.PaymentEventResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Process an unsafe unauthenticated demo payment callback
+      tags:
+      - internal
+  /internal/v1/products/{productID}/stock-adjustments:
+    post:
+      consumes:
+      - application/json
+      description: Disabled by default. Runtime registration requires GOODQUEUE_UNSAFE_STOCK_ADJUSTMENT=true;
+        do not expose publicly.
+      parameters:
+      - description: Product-scoped adjustment key
+        in: header
+        maxLength: 128
+        minLength: 1
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Product UUID
+        format: uuid
+        in: path
+        name: productID
+        required: true
+        type: string
+      - description: Adjustment payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.StockAdjustmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.StockAdjustmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Apply an idempotent internal stock adjustment
+      tags:
+      - internal
+  /readyz:
+    get:
+      description: Reports whether PostgreSQL responds within the configured timeout.
+        Dependency errors are never exposed.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handler.HealthResponse'
+      summary: Readiness probe
+      tags:
+      - infrastructure
+produces:
+- application/json
+schemes:
+- http
+swagger: "2.0"
